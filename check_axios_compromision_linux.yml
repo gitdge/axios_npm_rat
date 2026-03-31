@@ -1,0 +1,31 @@
+---
+- name: Forensic Check for Linux Axios RAT Infection
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: 1. Search for malicious ld.py dropper
+      ansible.builtin.stat:
+        path: "/tmp/ld.py"
+        get_checksum: yes
+      register: rat_file
+
+    - name: 2. Search for active malicious process (Optional/Heuristic)
+      ansible.builtin.shell: "ps aux | grep '[l]d.py'"
+      register: rat_process
+      ignore_errors: yes
+      failed_when: "rat_process.rc == 2"
+      changed_when: false
+
+    - name: Report Linux Infection Status
+      ansible.builtin.debug:
+        msg: 
+          - "--- HOST: {{ inventory_hostname }} ---"
+          - "Infection File (/tmp/ld.py): {{ 'DETECTED - SYSTEM COMPROMISED' if rat_file.stat.exists else 'CLEAN' }}"
+          - "Active RAT Process: {{ 'RUNNING' if rat_process.rc == 0 else 'NOT DETECTED' }}"
+
+    - name: Immediate Forensic Alert
+      ansible.builtin.fail:
+        msg: "CRITICAL: Malicious artifacts found on {{ inventory_hostname }}. Follow IR protocols immediately."
+      when: rat_file.stat.exists or rat_process.rc == 0
